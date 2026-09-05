@@ -1,0 +1,46 @@
+name: Update profile stats
+
+on:
+  schedule:
+    # 매일 21:00 UTC = 06:00 KST
+    - cron: "0 21 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/scripts/update-stats.mjs"
+      - ".github/workflows/profile-stats.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: profile-stats
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Collect stats and rewrite README
+        env:
+          # STATS_TOKEN(개인 액세스 토큰)을 등록하면 비공개 저장소 기여도 함께 집계됩니다.
+          # 없으면 기본 GITHUB_TOKEN 으로 공개 활동만 집계합니다.
+          GITHUB_TOKEN: ${{ secrets.STATS_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_USER: ${{ github.repository_owner }}
+        run: node .github/scripts/update-stats.mjs
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git diff --staged --quiet && echo "변경 없음" && exit 0
+          git commit -m "chore: update profile stats"
+          git push
