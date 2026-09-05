@@ -31,6 +31,7 @@ query ($login: String!) {
     contributionsCollection {
       totalCommitContributions
       totalPullRequestReviewContributions
+      restrictedContributionsCount
       contributionCalendar { totalContributions }
     }
     pullRequests { totalCount }
@@ -60,7 +61,13 @@ async function fetchStats() {
 
   const u = json.data.user;
   return {
-    commits: u.contributionsCollection.totalCommitContributions,
+    // 비공개 저장소 기여(restrictedContributionsCount)는 별도 필드라 직접 더해야 합니다.
+    // 이 값이 0으로 나오면 토큰 권한이 없거나, GitHub 프로필 설정에서
+    // "Include private contributions on my profile" 이 꺼져 있는 것입니다.
+    commits:
+      u.contributionsCollection.totalCommitContributions +
+      u.contributionsCollection.restrictedContributionsCount,
+    privateContributions: u.contributionsCollection.restrictedContributionsCount,
     prs: u.pullRequests.totalCount,
     issues: u.issues.totalCount,
     reviews: u.contributionsCollection.totalPullRequestReviewContributions,
@@ -209,7 +216,11 @@ function render(stats) {
     rows,
     ...(goals ? ["", goals] : []),
     "",
-    `<sub>${today} 기준 · 매일 자동 갱신 · 기준치는 전 세계 GitHub 사용자의 중앙값</sub>`,
+    `<sub>${today} 기준 · 매일 자동 갱신` +
+      (stats.privateContributions > 0
+        ? ` · 비공개 저장소 기여 ${stats.privateContributions}개 포함`
+        : "") +
+      ` · 기준치는 전 세계 GitHub 사용자의 중앙값</sub>`,
   ].join("\n");
 }
 
